@@ -48,6 +48,10 @@ func main() {
 		var f *ImageFile
 		var err error
 
+		// Todo: Instead of processing images sequentially - for better concurrency
+		// we could use goroutines and channels to read files in separate go routines
+		// and write data to a channel. We could then for loop on the channel and
+		// send the chunks to client
 		for i, path := range pathList {
 			// Get the image file content as base64
 			f, err = getImage(path)
