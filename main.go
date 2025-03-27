@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -19,6 +20,7 @@ func main() {
 
 	ge.Use(CORSMiddleware())
 
+	// API to send base64 encoded images as chunk encoded
 	ge.GET("/thumbnail-batch", func(c *gin.Context) {
 		// Extract image paths from query parameters
 		// ?paths=/images/timg1.png,/images/timg2.png,/images/timg3.png
@@ -88,59 +90,60 @@ func main() {
 		log.Println("all files sent")
 	})
 
-	// ge.GET("/data", func(c *gin.Context) {
-	// 	// Simulate a large data source (e.g., a file)
-	// 	data := make([]byte, 5*chunkSize) // 5KB of data
-	// 	for i := range data {
-	// 		data[i] = byte('A' + (i % 26)) // Fill with repeating letters
-	// 	}
+	// A simple API to demonstrate chunk transfer encoding - response is text strings
+	ge.GET("/data", func(c *gin.Context) {
+		// Simulate a large data source (e.g., a file)
+		data := make([]byte, 5*chunkSize) // 5KB of data
+		for i := range data {
+			data[i] = byte('A' + (i % 26)) // Fill with repeating letters
+		}
 
-	// 	// Set headers for chunked transfer encoding
-	// 	c.Header("Content-Type", "application/octet-stream")
-	// 	c.Header("Transfer-Encoding", "chunked")
+		// Set headers for chunked transfer encoding
+		c.Header("Content-Type", "application/octet-stream")
+		c.Header("Transfer-Encoding", "chunked")
 
-	// 	// Write data in chunks
-	// 	for i := 0; i < len(data); i += chunkSize {
-	// 		end := min(i+chunkSize, len(data))
+		// Write data in chunks
+		for i := 0; i < len(data); i += chunkSize {
+			end := min(i+chunkSize, len(data))
 
-	// 		chunk := data[i:end]
+			chunk := data[i:end]
 
-	// 		// Write chunk size in hex followed by CRLF
-	// 		chunkSizeStr := strconv.FormatInt(int64(len(chunk)), 16) + "\r\n"
+			// Write chunk size in hex followed by CRLF
+			chunkSizeStr := strconv.FormatInt(int64(len(chunk)), 16) + "\r\n"
 
-	// 		log.Println("chunk size: ", len(chunk))
-	// 		log.Println("chunk size in hex: ", chunkSizeStr)
+			log.Println("chunk size: ", len(chunk))
+			log.Println("chunk size in hex: ", chunkSizeStr)
 
-	// 		_, err := c.Writer.WriteString(chunkSizeStr)
-	// 		if err != nil {
-	// 			log.Println("Error writing chunk size:", err)
-	// 			return
-	// 		}
+			_, err := c.Writer.WriteString(chunkSizeStr)
+			if err != nil {
+				log.Println("Error writing chunk size:", err)
+				return
+			}
 
-	// 		// Write chunk data
-	// 		_, err = c.Writer.Write(chunk)
-	// 		if err != nil {
-	// 			log.Println("Error writing chunk data:", err)
-	// 			return
-	// 		}
+			// Write chunk data
+			_, err = c.Writer.Write(chunk)
+			if err != nil {
+				log.Println("Error writing chunk data:", err)
+				return
+			}
 
-	// 		// Write CRLF (end of line) to denote end of chunk
-	// 		_, err = c.Writer.WriteString("\r\n")
-	// 		if err != nil {
-	// 			log.Println("Error writing CRLF:", err)
-	// 			return
-	// 		}
+			// Write CRLF (end of line) to denote end of chunk
+			_, err = c.Writer.WriteString("\r\n")
+			if err != nil {
+				log.Println("Error writing CRLF:", err)
+				return
+			}
 
-	// 		c.Writer.Flush() // Flush to ensure data is sent immediately
-	// 	}
+			c.Writer.Flush() // Flush to ensure data is sent immediately
+		}
 
-	// 	// Write the final chunk (zero-size chunk)
-	// 	_, err := c.Writer.WriteString("0\r\n\r\n")
-	// 	if err != nil {
-	// 		log.Println("Error writing final chunk:", err)
-	// 		return
-	// 	}
-	// })
+		// Write the final chunk (zero-size chunk)
+		_, err := c.Writer.WriteString("0\r\n\r\n")
+		if err != nil {
+			log.Println("Error writing final chunk:", err)
+			return
+		}
+	})
 
 	ge.Run(":8080")
 }

@@ -16,4 +16,5 @@ This project demonstrates chunk transfer encoding for sending base64 encoded ima
 
 ## Endpoints
 
+*   `/data/`: Simple API to demonstrate chunk transfer encoding
 *   `/thumbnail-batch?paths=<image_paths>`: Returns base64 encoded images in chunks. `<image_paths>` is a comma-separated list of image paths (e.g., `/images/timg1.png,/images/timg2.png`). Example - `http://localhost:8080/thumbnail-batch?paths=/images/timg1.png,/images/timg2.png,/images/timg3.png`
