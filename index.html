@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Thumbnail - Chunk Transfer</title>
+    <script>
+      const baseUrl = "http://localhost:8080";
+      const thumbnailUrls = [
+        "/images/timg1.png",
+        "/images/timg2.png",
+        "/images/timg3.png",
+      ];
+
+      // Fetch and display deployments
+      async function getThumbnailImages() {
+        const paths = thumbnailUrls.join(",");
+        const apiUrl = `${baseUrl}/thumbnail-batch?paths=${paths}`;
+
+        const tContainer = document.getElementById("thumnail-container");
+
+        const response = await fetch(apiUrl);
+        if (!response.ok) {
+          // Handle errors
+          throw new Error(`HTTP error ${response.status}`);
+        }
+
+        // Process the chunked response
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+
+        while (true) {
+          console.log("Reading from response...")
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+
+          // Process complete chunks (separated by \r\n)
+          let chunkEnd;
+          while ((chunkEnd = buffer.indexOf("\r\n")) !== -1) {
+            console.log("Chunk end")
+
+            const chunk = buffer.substring(0, chunkEnd);
+            buffer = buffer.substring(chunkEnd + 2); // Remove processed chunk + \r\n
+
+            if (chunk === "0") {
+              // End of transmission
+              continue;
+            }
+
+            if (chunk) {
+              processChunk(chunk);
+            }
+          }
+        }
+
+        // Process any remaining data in buffer
+        if (buffer) {
+          processChunk(buffer);
+        }
+
+        console.log("All images loaded successfully!");
+      }
+
+      function processChunk(chunk) {
+        // Expected format: <index>:data:<content-type>;<base64>
+        const match = chunk.match(/^(\d+):data:([^;]+);(.+)$/);
+        if (!match) {
+          console.warn("Invalid chunk format:", chunk);
+          return;
+        }
+
+        const [_, index, contentType, base64Data] = match;
+
+        // Create image element
+        const imgSrc = `data:${contentType};base64,${base64Data}`;
+
+        const tContainer = document.getElementById("thumbnail-container");
+
+        const img = document.createElement("img");
+        img.src = imgSrc;
+        img.width = "200";
+        img.alt = `Image ${parseInt(index)}`;
+
+        tContainer.appendChild(img);
+
+        console.log("Images with index", index, "loaded!");
+      }
+
+      // Load tasks on page load
+      window.onload = getThumbnailImages;
+
+      // Extract the base64 string from chunk
+      function getImageB64Str(chunk) {
+        // Chunk format: <index>:data:<content-type>;<base64>
+        // Example: 0:data:image/png;iVBORw0KGgoAAAANSUhE....
+        const arr = chunk.split(";");
+        if (arr.length != 2) {
+          throw new Error(`Image data not found`);
+        }
+
+        return arr[1];
+      }
+    </script>
+  </head>
+  <body>
+    <h2>Thumbnails</h2>
+    <div id="thumbnail-container">
+      <!-- Add images here as fetched from API -->
+    </div>
+  </body>
+</html>
