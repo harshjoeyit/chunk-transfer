@@ -1,16 +1,14 @@
 package main
 
 import (
-	b64 "encoding/base64"
 	"fmt"
 	"log"
 	"net/http"
-	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	imagesvc "github.com/harshjoeyit/chunk-transfer/image-svc"
 )
 
 const chunkSize = 1024 // 1KB chunk size
@@ -21,7 +19,7 @@ func main() {
 	ge.Use(CORSMiddleware())
 
 	// API to send base64 encoded images as chunk encoded
-	ge.GET("/thumbnail-batch", func(c *gin.Context) {
+	ge.GET("/thumbnail-batch-concurrent", func(c *gin.Context) {
 		// Extract image paths from query parameters
 		// ?paths=/images/timg1.png,/images/timg2.png,/images/timg3.png
 		paths := c.Query("paths")
@@ -45,7 +43,63 @@ func main() {
 		c.Header("Content-Type", "text/plain")
 		c.Header("Transfer-Encoding", "chunked")
 
-		var f *ImageFile
+		var err error
+
+		for dataChunk := range imagesvc.GetThumbnailDataChunks(pathList) {
+			// Write the data chunk
+			_, err = c.Writer.WriteString(dataChunk)
+			if err != nil {
+				log.Println("Error writing chunk data:", err)
+				return
+			}
+
+			// Write CRLF (end of line) to denote end of chunk
+			_, err = c.Writer.WriteString("\r\n")
+			if err != nil {
+				log.Println("Error writing CRLF:", err)
+				return
+			}
+
+			// Flush to ensure data is sent immediately
+			c.Writer.Flush()
+		}
+
+		// Write the final chunk (zero-size chunk)
+		_, err = c.Writer.WriteString("0\r\n\r\n")
+		if err != nil {
+			log.Println("Error writing final chunk:", err)
+			return
+		}
+
+		log.Println("All files sent")
+	})
+
+	// API to send base64 encoded images as chunk encoded
+	ge.GET("/thumbnail-batch-blocking", func(c *gin.Context) {
+		// Extract image paths from query parameters
+		// ?paths=/images/timg1.png,/images/timg2.png,/images/timg3.png
+		paths := c.Query("paths")
+
+		if paths == "" {
+			c.String(http.StatusBadRequest, "Missing 'paths' query parameter")
+			return
+		}
+
+		// Split the paths string into a slice of individual paths
+		pathList := strings.Split(paths, ",")
+
+		// Print the extracted paths
+		log.Println("Extracted paths:")
+		for _, path := range pathList {
+			log.Println(path)
+		}
+
+		// Set headers for chunked transfer encoding
+		// c.Header("Content-Type", "application/octet-stream")
+		c.Header("Content-Type", "text/plain")
+		c.Header("Transfer-Encoding", "chunked")
+
+		var f *imagesvc.ImageFile
 		var err error
 
 		// Todo: Instead of processing images sequentially - for better concurrency
@@ -54,7 +108,7 @@ func main() {
 		// send the chunks to client
 		for i, path := range pathList {
 			// Get the image file content as base64
-			f, err = getImage(path)
+			f, err = imagesvc.GetThumbanail(path)
 			if err != nil {
 				log.Printf("error getting image b64 data for path: %s, error: %v", path, err)
 				continue
@@ -150,45 +204,6 @@ func main() {
 	})
 
 	ge.Run(":8080")
-}
-
-type ImageFile struct {
-	// File size in bytes
-	Size        int64
-	B64         string
-	ContentType string
-}
-
-// getImage reads the file contents and returns as base64
-func getImage(path string) (*ImageFile, error) {
-	fpath := filepath.Join(strings.Split(path, "/")...)
-
-	fInfo, err := os.Stat(fpath)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	size := fInfo.Size()
-	log.Printf("File size: %d bytes", size)
-
-	data, err := os.ReadFile(fpath)
-	if err != nil {
-		return nil, fmt.Errorf("error reading file: %w", err)
-	}
-
-	encoded := b64.StdEncoding.EncodeToString([]byte(data))
-	log.Printf("File b64 encoded str %s", encoded[0:20])
-
-	contentType := http.DetectContentType(data[:512])
-	log.Printf("Content type: %s", contentType)
-
-	f := &ImageFile{
-		Size:        size,
-		B64:         encoded,
-		ContentType: contentType,
-	}
-
-	return f, nil
 }
 
 func CORSMiddleware() gin.HandlerFunc {

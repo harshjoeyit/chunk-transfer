@@ -10,12 +10,14 @@
         "/images/timg1.png",
         "/images/timg2.png",
         "/images/timg3.png",
+        "/images/timg4.png",
+        "/images/timg5.png",
       ];
 
       // Fetch and display deployments
       async function getThumbnailImages() {
         const paths = thumbnailUrls.join(",");
-        const apiUrl = `${baseUrl}/thumbnail-batch?paths=${paths}`;
+        const apiUrl = `${baseUrl}/thumbnail-batch-concurrent?paths=${paths}`;
 
         const tContainer = document.getElementById("thumnail-container");
 
@@ -51,20 +53,20 @@
             }
 
             if (chunk) {
-              processChunk(chunk);
+              displayImage(chunk);
             }
           }
         }
 
         // Process any remaining data in buffer
         if (buffer) {
-          processChunk(buffer);
+          displayImage(buffer);
         }
 
         console.log("All images loaded successfully!");
       }
 
-      function processChunk(chunk) {
+      function displayImage(chunk) {
         // Expected format: <index>:data:<content-type>;<base64>
         const match = chunk.match(/^(\d+):data:([^;]+);(.+)$/);
         if (!match) {
@@ -91,18 +93,6 @@
 
       // Load tasks on page load
       window.onload = getThumbnailImages;
-
-      // Extract the base64 string from chunk
-      function getImageB64Str(chunk) {
-        // Chunk format: <index>:data:<content-type>;<base64>
-        // Example: 0:data:image/png;iVBORw0KGgoAAAANSUhE....
-        const arr = chunk.split(";");
-        if (arr.length != 2) {
-          throw new Error(`Image data not found`);
-        }
-
-        return arr[1];
-      }
     </script>
   </head>
   <body>
